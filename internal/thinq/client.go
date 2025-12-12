@@ -66,11 +66,18 @@ func (c *Client) GetDeviceList() ([]Device, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		var errResp ErrorResponse
-		if err := json.Unmarshal(body, &errResp); err != nil {
-			return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+		// Try nested error format first
+		var nestedErr ErrorResponseNested
+		if err := json.Unmarshal(body, &nestedErr); err == nil && nestedErr.Error.Code != "" {
+			return nil, fmt.Errorf("API error (code: %s): %s", nestedErr.Error.Code, nestedErr.Error.Message)
 		}
-		return nil, fmt.Errorf("API error (code: %s): %s", errResp.ResultCode, errResp.Message)
+		// Try flat error format
+		var errResp ErrorResponse
+		if err := json.Unmarshal(body, &errResp); err == nil && errResp.ResultCode != "" {
+			return nil, fmt.Errorf("API error (code: %s): %s", errResp.ResultCode, errResp.Message)
+		}
+		// Fallback to raw body
+		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var deviceResp DeviceListResponse

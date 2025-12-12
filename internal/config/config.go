@@ -4,15 +4,17 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	ThinQPAT     string
-	CountryCode  string
-	ClientID     string
+	ThinQPAT       string
+	CountryCode    string
+	ClientID       string
+	MinTemperature int
 }
 
 func Load() (*Config, error) {
@@ -20,10 +22,21 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("error loading .env file: %w", err)
 	}
 
+	minTemp := 21 // Default minimum temperature
+	if tempStr := os.Getenv("MIN_TEMPERATURE"); tempStr != "" {
+		if temp, err := strconv.Atoi(tempStr); err == nil {
+			minTemp = temp
+		}
+	}
+	if minTemp < 21 {
+		minTemp = 21
+	}
+
 	cfg := &Config{
-		ThinQPAT:    os.Getenv("THINQ_PAT"),
-		CountryCode: os.Getenv("THINQ_COUNTRY_CODE"),
-		ClientID:    os.Getenv("THINQ_CLIENT_ID"),
+		ThinQPAT:       os.Getenv("THINQ_PAT"),
+		CountryCode:    os.Getenv("THINQ_COUNTRY_CODE"),
+		ClientID:       os.Getenv("THINQ_CLIENT_ID"),
+		MinTemperature: minTemp,
 	}
 
 	if cfg.ThinQPAT == "" {

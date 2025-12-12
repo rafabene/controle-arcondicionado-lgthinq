@@ -15,10 +15,6 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
-const (
-	targetTemperature = 24
-)
-
 func main() {
 	// Load configuration
 	cfg, err := config.Load()
@@ -27,7 +23,7 @@ func main() {
 	}
 
 	fmt.Println("=== LG ThinQ Energy Saver ===")
-	fmt.Printf("Target Temperature: %d°C\n", targetTemperature)
+	fmt.Printf("Minimum Temperature: %d°C\n", cfg.MinTemperature)
 	fmt.Printf("Country Code: %s\n", cfg.CountryCode)
 	fmt.Printf("Client ID: %s\n\n", cfg.ClientID)
 
@@ -82,7 +78,7 @@ func main() {
 	}
 
 	// Setup MQTT options with message handler
-	messageHandler := createMessageHandler(client, devices)
+	messageHandler := createMessageHandler(client, devices, cfg.MinTemperature)
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(fmt.Sprintf("ssl://%s", mqttServer))
 	opts.SetClientID(cfg.ClientID)
@@ -103,7 +99,7 @@ func main() {
 				log.Printf("Failed to subscribe to %s: %v", topic, token.Error())
 			}
 		}
-		fmt.Printf("\n🌱 Energy Saver Active! Auto-adjusting to %d°C (press Ctrl+C to stop)...\n\n", targetTemperature)
+		fmt.Printf("\n🌱 Energy Saver Active! Minimum allowed: %d°C (press Ctrl+C to stop)...\n\n", cfg.MinTemperature)
 	})
 
 	// Create and start MQTT client
@@ -123,7 +119,7 @@ func main() {
 }
 
 // createMessageHandler creates a message handler that adjusts temperature
-func createMessageHandler(client *thinq.Client, devices []thinq.Device) mqtt.MessageHandler {
+func createMessageHandler(client *thinq.Client, devices []thinq.Device, minTemperature int) mqtt.MessageHandler {
 	// Create device alias map for friendly names
 	deviceAliases := make(map[string]string)
 	for _, device := range devices {
@@ -164,23 +160,23 @@ func createMessageHandler(client *thinq.Client, devices []thinq.Device) mqtt.Mes
 			return
 		}
 
-		// Check if target temperature is set and different from our target
+		// Check if target temperature is set and below minimum
 		targetTemp, hasTarget := temperature["targetTemperature"].(float64)
 		if !hasTarget {
 			return
 		}
 
-		// If temperature is already at target, skip
-		if int(targetTemp) == targetTemperature {
+		// Only adjust if temperature is below minimum
+		if int(targetTemp) >= minTemperature {
 			return
 		}
 
-		// Adjust temperature
-		fmt.Printf("[%s] 🌡️  Temperature at %.0f°C, adjusting to %d°C...\n",
-			time.Now().Format("15:04:05"), targetTemp, targetTemperature)
+		// Adjust temperature to minimum
+		fmt.Printf("[%s] 🌡️  Temperature at %.0f°C (below minimum), adjusting to %d°C...\n",
+			time.Now().Format("15:04:05"), targetTemp, minTemperature)
 		fmt.Printf("           Device: %s\n", alias)
 
-		if err := client.SetTemperature(deviceID, targetTemperature); err != nil {
+		if err := client.SetTemperature(deviceID, minTemperature); err != nil {
 			fmt.Printf("           ❌ Failed: %v\n\n", err)
 		} else {
 			fmt.Printf("           ✅ Temperature adjusted successfully!\n\n")

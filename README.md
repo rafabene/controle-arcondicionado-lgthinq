@@ -1,6 +1,6 @@
 # Economizador de Energia - LG ThinQ
 
-Aplicação Go que monitora e controla automaticamente a temperatura de ar condicionados LG através da API ThinQ, mantendo sempre em 24°C para economia de energia.
+Aplicação Go que monitora e controla automaticamente a temperatura de ar condicionados LG através da API ThinQ, garantindo que a temperatura nunca fique abaixo do mínimo configurado para economia de energia.
 
 ## Estrutura do Projeto
 
@@ -21,6 +21,7 @@ controle-arcondicionado/
 ├── .gitignore
 ├── go.mod
 ├── go.sum
+├── Makefile                 # Comandos de build e execução
 └── README.md
 ```
 
@@ -28,9 +29,9 @@ controle-arcondicionado/
 
 - Conexão em tempo real via MQTT com dispositivos LG ThinQ
 - Detecção automática de mudanças de temperatura
-- Ajuste imediato da temperatura para 24°C
+- Ajuste automático quando a temperatura fica abaixo do mínimo configurado
+- Temperatura mínima configurável via variável de ambiente
 - Suporte para múltiplos dispositivos simultaneamente
-- Sem cooldown - ajusta sempre que detecta mudança
 
 ## Requisitos
 
@@ -63,13 +64,24 @@ Edite o arquivo `.env` e adicione suas credenciais:
 ```env
 THINQ_PAT=seu_token_aqui
 THINQ_COUNTRY_CODE=BR
+MIN_TEMPERATURE=21
 ```
 
-**Nota:** O Client ID é gerado automaticamente pela aplicação, não precisa configurar.
+**Notas:**
+- O Client ID é gerado automaticamente pela aplicação, não precisa configurar
+- `MIN_TEMPERATURE` define a temperatura mínima permitida (padrão: 21°C)
 
 ## Uso
 
-Para iniciar o economizador de energia:
+Para compilar e executar:
+
+```bash
+make build   # Compila o binário
+make run     # Compila e executa
+make clean   # Remove o binário
+```
+
+Ou diretamente com Go:
 
 ```bash
 go run cmd/economizador/main.go
@@ -80,7 +92,7 @@ O sistema irá:
 2. Listar todos os dispositivos encontrados
 3. Inscrever-se para receber eventos de cada dispositivo
 4. Monitorar mudanças de temperatura em tempo real
-5. Ajustar automaticamente para 24°C sempre que detectar uma mudança
+5. Ajustar automaticamente para a temperatura mínima quando detectar valor abaixo do configurado
 
 Para parar o programa, pressione `Ctrl+C`.
 
@@ -91,19 +103,21 @@ Para parar o programa, pressione `Ctrl+C`.
 3. **Registro MQTT**: Registra o cliente e obtém certificados para conexão MQTT segura (mTLS)
 4. **Inscrição**: Inscreve-se para receber eventos de cada dispositivo
 5. **Monitoramento**: Escuta eventos MQTT em tempo real
-6. **Controle**: Quando detecta `targetTemperature` diferente de 24°C, envia comando para ajustar
+6. **Controle**: Quando detecta `targetTemperature` abaixo do mínimo configurado, envia comando para ajustar
 
-## Configuração Avançada
+## Configuração
 
-### Alterando a Temperatura Alvo
+### Temperatura Mínima
 
-Para mudar de 24°C para outra temperatura, edite `cmd/economizador/main.go`:
+Configure a temperatura mínima permitida no arquivo `.env`:
 
-```go
-const (
-    targetTemperature = 24  // Altere para a temperatura desejada
-)
+```env
+MIN_TEMPERATURE=21
 ```
+
+- Valores abaixo de 21 serão automaticamente ajustados para 21
+- Quando o ar condicionado é configurado para uma temperatura abaixo do mínimo, o sistema ajusta automaticamente
+- Temperaturas iguais ou acima do mínimo são permitidas
 
 ## API Endpoints Utilizados
 
