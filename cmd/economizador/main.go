@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -15,66 +16,95 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
+var logger *log.Logger
+
+func initLogger() (*os.File, error) {
+	logFile, err := os.OpenFile("economizador.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open log file: %w", err)
+	}
+
+	multiWriter := io.MultiWriter(os.Stdout, logFile)
+	logger = log.New(multiWriter, "", log.Ldate|log.Ltime)
+
+	return logFile, nil
+}
+
+func logMsg(format string, args ...interface{}) {
+	logger.Printf(format, args...)
+}
+
+func logFatal(format string, args ...interface{}) {
+	logger.Fatalf(format, args...)
+}
+
 func main() {
+	// Initialize logger
+	logFile, err := initLogger()
+	if err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logFile.Close()
+
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		logFatal("Failed to load configuration: %v", err)
 	}
 
-	fmt.Println("=== LG ThinQ Energy Saver ===")
-	fmt.Printf("Minimum Temperature: %d°C\n", cfg.MinTemperature)
-	fmt.Printf("Country Code: %s\n", cfg.CountryCode)
-	fmt.Printf("Client ID: %s\n\n", cfg.ClientID)
+	logMsg("=== LG ThinQ Energy Saver ===")
+	logMsg("Minimum Temperature: %d°C", cfg.MinTemperature)
+	logMsg("Country Code: %s", cfg.CountryCode)
+	logMsg("Client ID: %s", cfg.ClientID)
 
 	// Create ThinQ client
 	client := thinq.NewClient(cfg.ThinQPAT, cfg.CountryCode, cfg.ClientID)
 
 	// Get MQTT broker
-	fmt.Println("Getting MQTT broker information...")
+	logMsg("Getting MQTT broker information...")
 	mqttServer, err := client.GetMQTTRoute()
 	if err != nil {
-		log.Fatalf("Failed to get MQTT route: %v", err)
+		logFatal("Failed to get MQTT route: %v", err)
 	}
-	fmt.Printf("MQTT Server: %s\n\n", mqttServer)
+	logMsg("MQTT Server: %s", mqttServer)
 
 	// Get device list first
-	fmt.Println("Fetching devices...")
+	logMsg("Fetching devices...")
 	devices, err := client.GetDeviceList()
 	if err != nil {
-		log.Fatalf("Failed to get device list: %v", err)
+		logFatal("Failed to get device list: %v", err)
 	}
-	fmt.Printf("Found %d device(s)\n\n", len(devices))
+	logMsg("Found %d device(s)", len(devices))
 
 	// Subscribe to events for each device
-	fmt.Println("Subscribing to device events and push notifications...")
+	logMsg("Subscribing to device events and push notifications...")
 	for i, device := range devices {
-		fmt.Printf("[%d/%d] Subscribing to: %s\n", i+1, len(devices), device.Alias)
+		logMsg("[%d/%d] Subscribing to: %s", i+1, len(devices), device.Alias)
 
 		// Subscribe to events
 		if err := client.SubscribeToDeviceEvents(device.DeviceID); err != nil {
-			log.Printf("Warning: Failed to subscribe to events for %s: %v", device.Alias, err)
+			logMsg("Warning: Failed to subscribe to events for %s: %v", device.Alias, err)
 		}
 
 		// Subscribe to push notifications
 		if err := client.SubscribeToPushNotifications(device.DeviceID); err != nil {
-			log.Printf("Warning: Failed to subscribe to push for %s: %v", device.Alias, err)
+			logMsg("Warning: Failed to subscribe to push for %s: %v", device.Alias, err)
 		}
 	}
-	fmt.Println("Subscription complete!\n")
+	logMsg("Subscription complete!")
 
 	// Get MQTT credentials
-	fmt.Println("Obtaining MQTT credentials...")
+	logMsg("Obtaining MQTT credentials...")
 	credentials, err := client.GetMQTTCredentials()
 	if err != nil {
-		log.Fatalf("Failed to get MQTT credentials: %v", err)
+		logFatal("Failed to get MQTT credentials: %v", err)
 	}
-	fmt.Printf("Received certificate and %d subscription topic(s)\n\n", len(credentials.Subscriptions))
+	logMsg("Received certificate and %d subscription topic(s)", len(credentials.Subscriptions))
 
 	// Setup TLS configuration
 	tlsConfig, err := createTLSConfig(credentials)
 	if err != nil {
-		log.Fatalf("Failed to create TLS config: %v", err)
+		logFatal("Failed to create TLS config: %v", err)
 	}
 
 	// Setup MQTT options with message handler
@@ -87,25 +117,25 @@ func main() {
 	opts.SetPingTimeout(10 * time.Second)
 	opts.SetDefaultPublishHandler(messageHandler)
 	opts.SetConnectionLostHandler(func(client mqtt.Client, err error) {
-		fmt.Printf("Connection lost: %v\n", err)
+		logMsg("Connection lost: %v", err)
 	})
 	opts.SetOnConnectHandler(func(client mqtt.Client) {
-		fmt.Println("Connected to MQTT broker!")
+		logMsg("Connected to MQTT broker!")
 
 		// Subscribe to all topics
 		for _, topic := range credentials.Subscriptions {
-			fmt.Printf("Subscribing to: %s\n", topic)
+			logMsg("Subscribing to: %s", topic)
 			if token := client.Subscribe(topic, 1, nil); token.Wait() && token.Error() != nil {
-				log.Printf("Failed to subscribe to %s: %v", topic, token.Error())
+				logMsg("Failed to subscribe to %s: %v", topic, token.Error())
 			}
 		}
-		fmt.Printf("\n🌱 Energy Saver Active! Minimum allowed: %d°C (press Ctrl+C to stop)...\n\n", cfg.MinTemperature)
+		logMsg("Energy Saver Active! Minimum allowed: %d°C (press Ctrl+C to stop)...", cfg.MinTemperature)
 	})
 
 	// Create and start MQTT client
 	mqttClient := mqtt.NewClient(opts)
 	if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
-		log.Fatalf("Failed to connect to MQTT broker: %v", token.Error())
+		logFatal("Failed to connect to MQTT broker: %v", token.Error())
 	}
 
 	// Wait for interrupt signal
@@ -113,9 +143,17 @@ func main() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	<-sigChan
 
-	fmt.Println("\nDisconnecting from MQTT broker...")
+	// Unsubscribe from all topics
+	logMsg("Unsubscribing from topics...")
+	for _, topic := range credentials.Subscriptions {
+		if token := mqttClient.Unsubscribe(topic); token.Wait() && token.Error() != nil {
+			logMsg("Failed to unsubscribe from %s: %v", topic, token.Error())
+		}
+	}
+
+	logMsg("Disconnecting from MQTT broker...")
 	mqttClient.Disconnect(250)
-	fmt.Println("Energy Saver stopped. Goodbye!")
+	logMsg("Energy Saver stopped. Goodbye!")
 }
 
 // createMessageHandler creates a message handler that adjusts temperature
@@ -172,14 +210,13 @@ func createMessageHandler(client *thinq.Client, devices []thinq.Device, minTempe
 		}
 
 		// Adjust temperature to minimum
-		fmt.Printf("[%s] 🌡️  Temperature at %.0f°C (below minimum), adjusting to %d°C...\n",
-			time.Now().Format("15:04:05"), targetTemp, minTemperature)
-		fmt.Printf("           Device: %s\n", alias)
+		logMsg("Temperature at %.0f°C (below minimum), adjusting to %d°C... Device: %s",
+			targetTemp, minTemperature, alias)
 
 		if err := client.SetTemperature(deviceID, minTemperature); err != nil {
-			fmt.Printf("           ❌ Failed: %v\n\n", err)
+			logMsg("Failed to adjust temperature: %v", err)
 		} else {
-			fmt.Printf("           ✅ Temperature adjusted successfully!\n\n")
+			logMsg("Temperature adjusted successfully!")
 		}
 	}
 }
