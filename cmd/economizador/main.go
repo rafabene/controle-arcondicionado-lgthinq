@@ -210,8 +210,8 @@ func createMessageHandler(client *thinq.Client, devices []thinq.Device, minTempe
 		}
 
 		// Adjust temperature to minimum
-		logMsg("Temperature at %.0f°C (below minimum), adjusting to %d°C... Device: %s",
-			targetTemp, minTemperature, alias)
+		logMsg("[%s] Temperature at %.0f°C (below minimum), adjusting to %d°C...",
+			alias, targetTemp, minTemperature)
 
 		if err := client.SetTemperature(deviceID, minTemperature); err != nil {
 			logMsg("Failed to adjust temperature: %v", err)
