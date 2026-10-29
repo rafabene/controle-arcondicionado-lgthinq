@@ -15,7 +15,9 @@ controle-arcondicionado/
 │   └── thinq/
 │       ├── client.go        # Cliente HTTP e controle da API ThinQ
 │       ├── models.go        # Modelos de dados da API
-│       └── mqtt_models.go   # Modelos de dados do MQTT
+│       ├── mqtt_models.go   # Modelos de dados do MQTT
+│       ├── state.go         # Estado do dispositivo e parsing de power/temperatura
+│       └── state_test.go    # Testes do parsing de estado
 ├── .env                     # Variáveis de ambiente (não versionado)
 ├── .env.example             # Exemplo de configuração (versionado)
 ├── .gitignore
@@ -30,12 +32,14 @@ controle-arcondicionado/
 - Conexão em tempo real via MQTT com dispositivos LG ThinQ
 - Detecção automática de mudanças de temperatura
 - Ajuste automático quando a temperatura fica abaixo do mínimo configurado
+- Ajuste aplicado apenas com o aparelho ligado (comandos de temperatura são rejeitados pela API em `POWER OFF`)
+- Verificação do estado de todos os dispositivos na inicialização, corrigindo aparelhos que já estão ligados abaixo do mínimo
 - Temperatura mínima configurável via variável de ambiente
 - Suporte para múltiplos dispositivos simultaneamente
 
 ## Requisitos
 
-- Go 1.21 ou superior
+- Go 1.25.3 ou superior
 - Conta LG ThinQ com dispositivos cadastrados
 - Personal Access Token (PAT) da LG ThinQ
 
@@ -102,8 +106,9 @@ Para parar o programa, pressione `Ctrl+C`.
 2. **Descoberta**: Lista todos os dispositivos de ar condicionado na conta
 3. **Registro MQTT**: Registra o cliente e obtém certificados para conexão MQTT segura (mTLS)
 4. **Inscrição**: Inscreve-se para receber eventos de cada dispositivo
-5. **Monitoramento**: Escuta eventos MQTT em tempo real
-6. **Controle**: Quando detecta `targetTemperature` abaixo do mínimo configurado, envia comando para ajustar
+5. **Verificação inicial**: Consulta o estado de cada dispositivo e ajusta os que já estão ligados abaixo do mínimo
+6. **Monitoramento**: Escuta eventos MQTT em tempo real
+7. **Controle**: Quando detecta `targetTemperature` abaixo do mínimo configurado em um aparelho ligado, envia comando para ajustar
 
 ## Configuração
 
@@ -122,6 +127,7 @@ MIN_TEMPERATURE=21
 ## API Endpoints Utilizados
 
 - `GET /devices` - Lista dispositivos
+- `GET /devices/{deviceId}/state` - Obtém o estado atual do dispositivo
 - `GET /route` - Obtém servidor MQTT
 - `POST /client` - Registra cliente MQTT
 - `POST /client/certificate` - Obtém certificado para MQTT
@@ -149,6 +155,10 @@ MIN_TEMPERATURE=21
 ### "Already subscribed push" (warnings)
 - Isso é normal, indica que o dispositivo já estava inscrito
 - Não afeta o funcionamento do sistema
+
+### "Command not supported in POWER OFF" (código 2304)
+- Ocorria quando o ajuste era enviado com o aparelho desligado
+- O programa agora verifica o estado de energia (`operation.airConOperationMode`) antes de enviar o comando e ignora aparelhos em `POWER_OFF`
 
 ## Segurança
 

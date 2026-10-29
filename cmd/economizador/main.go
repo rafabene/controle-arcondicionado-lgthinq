@@ -93,6 +93,10 @@ func main() {
 	}
 	logMsg("Subscription complete!")
 
+	// Fix devices that are already running below the minimum before the
+	// first MQTT event arrives
+	checkInitialStates(client, devices, cfg.MinTemperature)
+
 	// Get MQTT credentials
 	logMsg("Obtaining MQTT credentials...")
 	credentials, err := client.GetMQTTCredentials()
@@ -193,31 +197,72 @@ func createMessageHandler(client *thinq.Client, devices []thinq.Device, minTempe
 			return
 		}
 
-		temperature, ok := report["temperature"].(map[string]interface{})
-		if !ok {
+		enforceMinTemperature(client, alias, deviceID, report, minTemperature)
+	}
+}
+
+// checkInitialStates applies the temperature limit to every device once at
+// startup, so devices already running below the minimum are fixed before the
+// first MQTT event arrives.
+func checkInitialStates(client *thinq.Client, devices []thinq.Device, minTemperature int) {
+	logMsg("Checking current state of each device...")
+	for i, device := range devices {
+		logMsg("[%d/%d] Checking: %s", i+1, len(devices), device.Alias)
+
+		state, err := client.GetDeviceState(device.DeviceID)
+		if err != nil {
+			logMsg("Warning: Failed to get state for %s: %v", device.Alias, err)
+			continue
+		}
+
+		enforceMinTemperature(client, device.Alias, device.DeviceID, state, minTemperature)
+	}
+}
+
+// enforceMinTemperature raises the target temperature to the configured minimum
+// when the device is running below it. Devices that are powered off are skipped,
+// because ThinQ rejects temperature commands in POWER OFF (error 2304).
+func enforceMinTemperature(client *thinq.Client, alias, deviceID string, state map[string]interface{}, minTemperature int) {
+	powerOn, powerKnown := thinq.PowerOn(state)
+	if !powerKnown {
+		// Pushes may carry partial reports, so ask the device for its state
+		fetched, err := client.GetDeviceState(deviceID)
+		if err != nil {
+			logMsg("[%s] Could not determine power state, skipping adjustment: %v", alias, err)
 			return
 		}
 
-		// Check if target temperature is set and below minimum
-		targetTemp, hasTarget := temperature["targetTemperature"].(float64)
-		if !hasTarget {
+		state = fetched
+		powerOn, powerKnown = thinq.PowerOn(state)
+		if !powerKnown {
+			logMsg("[%s] Power state not reported by device, skipping adjustment", alias)
 			return
 		}
+	}
 
-		// Only adjust if temperature is below minimum
-		if int(targetTemp) >= minTemperature {
-			return
-		}
+	// Nothing to adjust while the device is off
+	if !powerOn {
+		return
+	}
 
-		// Adjust temperature to minimum
-		logMsg("[%s] Temperature at %.0f°C (below minimum), adjusting to %d°C...",
-			alias, targetTemp, minTemperature)
+	targetTemp, ok := thinq.TargetTemperature(state)
+	if !ok {
+		return
+	}
 
-		if err := client.SetTemperature(deviceID, minTemperature); err != nil {
-			logMsg("Failed to adjust temperature: %v", err)
-		} else {
-			logMsg("Temperature adjusted successfully!")
-		}
+	// Only adjust if temperature is below minimum
+	if int(targetTemp) >= minTemperature {
+		return
+	}
+
+	// Adjust temperature to minimum
+	logMsg("[%s] Temperature at %.0f°C (below minimum), adjusting to %d°C...",
+		alias, targetTemp, minTemperature)
+
+	if err := client.SetTemperature(deviceID, minTemperature); err != nil {
+		logMsg("[%s] Failed to adjust temperature: %v", alias, err)
+	} else {
+		logMsg("[%s] Temperature adjusted successfully!", alias)
 	}
 }
 

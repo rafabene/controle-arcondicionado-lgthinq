@@ -30,6 +30,13 @@ type Device struct {
 	Reportable bool   `json:"reportable"`
 }
 
+// DeviceStateResponse represents the response from the device state API
+type DeviceStateResponse struct {
+	MessageID string                 `json:"messageId"`
+	Timestamp string                 `json:"timestamp"`
+	Response  map[string]interface{} `json:"response"`
+}
+
 // ErrorResponse represents an error from the API
 type ErrorResponse struct {
 	ResultCode string `json:"resultCode"`
