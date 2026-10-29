@@ -39,7 +39,7 @@ controle-arcondicionado/
 
 ## Requisitos
 
-- Go 1.25.3 ou superior
+- Go 1.26 ou superior
 - Conta LG ThinQ com dispositivos cadastrados
 - Personal Access Token (PAT) da LG ThinQ
 

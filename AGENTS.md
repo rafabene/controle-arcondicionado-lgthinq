@@ -18,9 +18,12 @@ make build-pi   # bin/economizador-pi (linux/arm64)
 
 go build ./... && go vet ./... && go test ./...
 go test ./internal/thinq -run TestPowerOn -v   # teste único
+go run golang.org/x/vuln/cmd/govulncheck@latest ./...   # scan de vulnerabilidades
 ```
 
 Não há CI, lint, pre-commit nem opencode.json: a verificação é `build + vet + test`.
+
+O `govulncheck` instalado em `~/go/bin` foi compilado com Go antigo e falha com a stdlib atual; rode sempre via `go run ...@latest`.
 
 ## Execução e configuração
 
