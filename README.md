@@ -68,12 +68,12 @@ Edite o arquivo `.env` e adicione suas credenciais:
 ```env
 THINQ_PAT=seu_token_aqui
 THINQ_COUNTRY_CODE=BR
-MIN_TEMPERATURE=21
+MIN_TEMPERATURE=23
 ```
 
 **Notas:**
 - O Client ID é gerado automaticamente pela aplicação, não precisa configurar
-- `MIN_TEMPERATURE` define a temperatura mínima permitida (padrão: 21°C)
+- `MIN_TEMPERATURE` define a temperatura mínima permitida (recomendado: 23°C; piso aceito: 21°C)
 
 ## Uso
 
@@ -117,12 +117,35 @@ Para parar o programa, pressione `Ctrl+C`.
 Configure a temperatura mínima permitida no arquivo `.env`:
 
 ```env
-MIN_TEMPERATURE=21
+MIN_TEMPERATURE=23
 ```
 
+- O valor recomendado é **23 °C** (veja [Por que 23 °C?](#por-que-23-c))
 - Valores abaixo de 21 serão automaticamente ajustados para 21
 - Quando o ar condicionado é configurado para uma temperatura abaixo do mínimo, o sistema ajusta automaticamente
 - Temperaturas iguais ou acima do mínimo são permitidas
+
+### Por que 23 °C?
+
+O código aceita 21 °C como piso, mas o valor usado na operação é 23 °C porque é
+onde conforto, saúde e consumo de energia se encontram:
+
+- **É o limite inferior da faixa recomendada pela ANVISA.** A Resolução RE nº 09/2003,
+  do Ministério da Saúde, recomenda de 23 °C a 26 °C para ambientes climatizados de
+  uso coletivo no verão. Abaixo de 23 °C o ambiente sai da faixa considerada adequada.
+- **É a recomendação do Inmetro para o termostato.** O Inmetro orienta ajustar o
+  aparelho para 23 °C por ser a faixa que equilibra conforto térmico e eficiência
+  energética, e lembra que temperaturas extremas (como 17 °C) não resfriam o ambiente
+  mais rápido: apenas mantêm o compressor ligado por mais tempo.
+- **Cada grau a menos custa energia.** Segundo o Procel, o termostato deve ficar entre
+  23 °C e 24 °C, e cada grau abaixo disso pode elevar o consumo em até 8%. Sair de
+  21 °C para 23 °C representa, na ordem de 16% menos energia no compressor.
+- **23 °C ainda desumidifica.** Quanto mais alto o setpoint, menos frio fica o
+  evaporador e menos água ele condensa, deixando o ar mais úmido. Em 23 °C o aparelho
+  ainda condensa o suficiente para o conforto de um dia quente, sem o frio
+  desconfortável de 21 °C.
+- **21 °C é piso técnico, não recomendação.** O piso existe para rejeitar configurações
+  erradas; operar no piso é o cenário mais caro possível, e não o objetivo do projeto.
 
 ## API Endpoints Utilizados
 
