@@ -147,8 +147,10 @@ confirmam que esse ponto também é o mais saudável e confortável.
   evaporador e menos água ele condensa, deixando o ar mais úmido. Em 23 °C o aparelho
   ainda condensa o suficiente para o conforto de um dia quente, sem o frio
   desconfortável de 21 °C.
-- **21 °C é piso técnico, não recomendação.** O piso existe para rejeitar configurações
-  erradas; operar no piso é o cenário mais caro possível, e não o objetivo do projeto.
+- **21 °C é o mínimo que o código aceita, não uma recomendação.** Se o `.env` trouxer
+  um valor menor, a aplicação eleva para 21 (`internal/config/config.go`). É uma trava
+  contra configuração errada, não um convite a rodar nesse ponto: como é o valor mais
+  baixo permitido, operar em 21 °C é o cenário mais caro dentro das regras do projeto.
 
 ## API Endpoints Utilizados
 
